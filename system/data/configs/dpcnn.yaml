@@ -1,0 +1,12 @@
+cuda: True
+dataparallel: False
+
+model: DPCNN
+ch_size: 300
+embed_dim: 300
+
+batch_size: 256
+num_workers: 4
+print_freq: 10
+epoch: 50
+save_path: checkpoint/dpcnn
