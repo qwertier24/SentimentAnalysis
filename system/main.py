@@ -15,8 +15,7 @@ def main ():
     for k, v in config.items():
         setattr(args, k, v)
 
-    model = models.__dict__ [args.model](ch_size=args.ch_size, embed_dim=args.embed_dim)
-    embeds = nn.Embedding (word_num, )
+    model = models.__dict__ [args.model](ch_size=args.ch_size, embed_dim=args.embed_dim, em)
     if args.gpu:
         model = model.cuda()
     if args.dataparallel:

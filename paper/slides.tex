@@ -1,0 +1,293 @@
+\documentclass[hyperref={unicode=true}]{beamer}
+\usepackage{multirow}
+\usepackage{amsmath} % used for boldsymbol.
+\renewcommand{\vec}[1]{\boldsymbol{#1}} % Uncomment for BOLD vectors.
+\usepackage[slantfont,boldfont]{xeCJK}
+\setCJKmainfont{SimSun}
+\setCJKmonofont{FangSong}
+\setCJKsansfont{SimHei}
+\usetheme{Darmstadt}
+\usecolortheme{beaver}
+\usepackage{booktabs}
+\usepackage{tikz}
+\setbeamertemplate{theorems}[numbered]
+\newtheorem{mytht}{\bf 定理}
+\theoremstyle{definition}
+\newtheorem{mydef}[]{\bf 定义}
+\theoremstyle{proof}
+\newtheorem{myprf}[]{\bf 证明}
+\usepackage{ulem}
+\usepackage[T1]{fontenc}
+\usepackage{inconsolata}
+\usepackage{subfigure}
+\makeatletter
+% there's no italic/slanted for Inconsolata
+\@namedef{T1/zi4/m/it}{<->ssub*zi4/m/n}
+\@namedef{T1/zi4/b/it}{<->ssub*zi4/b/n}
+\@namedef{T1/zi4/bx/it}{<->ssub*zi4/b/n}
+\@namedef{T1/zi4/m/sl}{<->ssub*zi4/m/n}
+\@namedef{T1/zi4/b/sl}{<->ssub*zi4/b/n}
+\@namedef{T1/zi4/bx/sl}{<->ssub*zi4/b/n}
+\makeatother
+
+\graphicspath{{figures/}}
+\input zhwinfonts
+\begin{document}
+\setbeamertemplate{caption}[numbered]
+\renewcommand\figurename{图}
+\renewcommand\tablename{表}
+\renewcommand\contentsname{\centering 目录}
+
+
+%%------------------------------------------
+\title{基于深度学习的驾驶场景语义分割算法的研究}
+\subtitle{ParaBN}
+\author{马玉坤}
+\institute{哈尔滨工业大学计算机科学与技术学院}
+\date{2019年3月28日}
+%%------------------------------------------
+
+\begin{frame}\titlepage\end{frame}
+
+  \begin{frame}\tableofcontents\end{frame}
+
+    \begin{frame}{语义分割上的效果}
+      \begin{figure}[!h]
+        \centering
+        \includegraphics[width=4in]{parabn/fcn8s.png}
+        \caption{用ParaBN使用Cityscapes数据与GTA数据一起训练}
+        \label{fig:parabn_fcn8s}
+      \end{figure}
+    \end{frame}
+
+    \begin{frame}{图像分类上的效果}
+      \begin{figure}[!h]
+        \centering
+        \includegraphics[width=\textwidth]{parabn/class.png}
+        \caption{用ParaBN进行分类任务}
+        \label{fig:parabn_class}
+      \end{figure}
+    \end{frame}
+
+\section{数据集}
+
+
+\begin{frame}\frametitle{数据集}
+  \begin{block}{Cityscapes}
+    \begin{figure}[!h]
+      \setlength{\subfigcapskip}{-1bp}
+      \centering
+      \begin{minipage}{\textwidth}
+        \centering
+        \subfigure[Cityscapes图像1]{\includegraphics[width=0.4\textwidth]{cs_1.png}}
+        \hspace{2em}
+        \subfigure[Cityscapes标签1]{\includegraphics[width=0.4\textwidth]{cs_label1.png}}
+      \end{minipage}
+      \begin{minipage}{\textwidth}
+        \centering
+        \subfigure[Cityscapes图像2]{\includegraphics[width=0.4\textwidth]{cs_2.png}}
+        \hspace{2em}
+        \subfigure[Cityscapes标签2]{\includegraphics[width=0.4\textwidth]{cs_label2.png}}
+      \end{minipage}
+      \caption{Cityscapes结果}\label{fig:cs_samples}
+    \end{figure}
+  \end{block}
+\end{frame}
+
+\begin{frame}\frametitle{数据集}
+  \begin{block}{GTAV}
+    \begin{figure}[!h]
+      \setlength{\subfigcapskip}{-1bp}
+      \centering
+      \begin{minipage}{\textwidth}
+        \centering
+        \subfigure[GTA图像1]{\includegraphics[width=0.4\textwidth]{gta_1.png}\label{fig:gta1}}
+        \hspace{2em}
+        \subfigure[GTA标签1]{\includegraphics[width=0.4\textwidth]{gta_label1.png}\label{fig:gta1l}}
+      \end{minipage}
+      \begin{minipage}{\textwidth}
+        \centering
+        \subfigure[GTA图像2]{\includegraphics[width=0.4\textwidth]{gta_2.png}\label{fig:gta2}}
+        \hspace{2em}
+        \subfigure[GTA标签2]{\includegraphics[width=0.4\textwidth]{gta_label2.png}\label{fig:gta2l}}
+      \end{minipage}
+      \caption{GTA结果}\label{fig:gta}
+    \end{figure}
+  \end{block}
+\end{frame}
+
+
+\begin{frame}\frametitle{数据集}
+  \begin{block}{ImageNet}
+    \begin{figure}[!h]
+      \setlength{\subfigcapskip}{-1bp}
+      \centering
+      \begin{minipage}{\textwidth}
+        \centering
+        \subfigure[熊猫图像1]{\includegraphics[width=0.2\textwidth]{imagenet/panda1.png}}
+        \subfigure[熊猫图像2]{\includegraphics[width=0.2\textwidth]{imagenet/panda2.png}}
+        \subfigure[熊猫图像3]{\includegraphics[width=0.2\textwidth]{imagenet/panda3.png}}
+      \end{minipage}
+      \begin{minipage}{\textwidth}
+        \centering
+        \subfigure[花图像1]{\includegraphics[width=0.2\textwidth]{imagenet/flower1.png}}
+        \subfigure[花图像2]{\includegraphics[width=0.2\textwidth]{imagenet/flower2.png}}
+        \subfigure[花图像3]{\includegraphics[width=0.2\textwidth]{imagenet/flower3.png}}
+      \end{minipage}
+      \caption{Imagenet图片示例}\label{fig:imagenet_samples}
+    \end{figure}
+  \end{block}
+\end{frame}
+
+
+\begin{frame}\frametitle{数据集}
+  \begin{block}{CIFAR-100}
+    \begin{figure}[!h]
+      \centering
+      \includegraphics[width=3in]{cifar100.png}
+      \caption{CIFAR-100数据示例}
+      \label{fig:cifar100_samples}
+    \end{figure}
+  \end{block}
+\end{frame}
+
+\section{语义分割}
+
+\begin{frame}\frametitle{FCN8s网络}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fcn8s_arch.jpeg}
+    \caption{FCN8s网络结构}
+    \label{fig:fcn8s_arch}
+  \end{figure}
+  将不同池化层的结果进行上采样，然后结合这些结果来优化输出。\\
+  backbone: VGG16
+\end{frame}
+
+
+\begin{frame}\frametitle{DeepLab v2网络}
+  \begin{block}{DeepLab v2}
+    \begin{figure}[!h]
+      \centering
+      \includegraphics[width=0.5\textwidth]{segmentation/deeplabv2_curve.png}
+      \caption{DeepLabv2训练曲线}
+      \label{fig:deeplabv2_curve}
+    \end{figure}
+  \end{block}
+\end{frame}
+
+\section{ParaBN}
+
+\begin{frame}{什么是ParaBN}
+  \begin{itemize}
+  \item 将本来网络中的一个BatchNorm层，变成若干个BatchNorm层的组合
+  \item 对不同组的输入，选择不同的BatchNorm层进行forward和backward
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{ParaBN与语义分割}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{parabn/parabn_csgta.png}
+    \caption{使用Cityscapes数据与GTA数据一起训练}
+    \label{fig:parabn_csgta}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{语义分割效果}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=4in]{parabn/fcn8s.png}
+    \caption{训练结果}
+    \label{fig:parabn_fcn8s}
+  \end{figure}
+\end{frame}
+
+
+\begin{frame}{语义分割效果}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=2.5in]{parabn/fcn8s_curve.png}
+    \caption{训练曲线}
+    \label{fig:parabn_fcn8s}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{ParaBN与图像分类}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{parabn/parabn_size.png}
+    \caption{用ParaBN进行多尺度图片分类任务}
+    \label{fig:parabn_size}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{图像分类结果}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{parabn/class.png}
+    \caption{用ParaBN进行分类任务}
+    \label{fig:parabn_class}
+  \end{figure}
+\end{frame}
+
+\section{数据扩充}
+
+\begin{frame}{动机}
+  \begin{itemize}
+  \item 图片白天多，晚上少。晴天多，雨天少。
+  \item 白天->晚上，晴天->雨天
+  \item 扩充数据集
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{AdaIN}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{adain_arch.jpg}
+    \caption{AdaIN网络结构}
+    \label{fig:adain_arch}
+  \end{figure}
+\end{frame}
+
+
+\begin{frame}{晴天转雨雪天}
+  \begin{figure}[htbp]
+    \subfigure[雨天]{\includegraphics[width=0.3\textwidth]{style_trans/sun2rain_2.jpg}}
+    \subfigure[雪天]{\includegraphics[width=0.3\textwidth]{style_trans/sun2rain_1.jpg}}
+    \subfigure[晚上]{\includegraphics[width=0.3\textwidth]{style_trans/sun2rain_3.jpg}}
+    \caption{从“晴天”风格转换成“雨雪天”风格}
+    \label{fig:sun2rain}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{效果}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{style_trans/day2night_res.png}
+    \caption{加入转换后的夜晚数据后}
+    \label{fig:day2night_res}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{效果}
+  \begin{figure}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{style_trans/sun2rain_res.png}
+    \caption{加入转换后的雨天数据后}
+    \label{fig:sun2rain_res}
+  \end{figure}
+\end{frame}
+
+\begin{frame}\frametitle{}
+  \vspace{0.2in}
+  \centering{\Huge 谢谢}
+\end{frame}
+
+%% \begin{frame}[allowframebreaks]
+%%         \frametitle{参考文献}
+%%         \bibliographystyle{unsrt}
+%%         \bibliography{ref.bib}
+%% \end{frame}
+
+\end{document}
