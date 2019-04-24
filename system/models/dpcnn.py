@@ -2,66 +2,63 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class Block(nn.Module):
+    def __init__(self, ch_size, downsample=None):
+        super(Block, self).__init__()
+        self.downsample = downsample
 
-class DPCNN(nn.Module):
-    """
-    DPCNN for sentences classification.
-    """
-    def __init__(self, ch_size, embed_dim):
-        super(DPCNN, self).__init__()
-        self.channel_size = ch_size
-        self.embed_dim = embed_dim
-        self.conv_region_embedding = nn.Conv2d(1, self.channel_size, (3, self.embed_dim), stride=1)
-        self.conv3 = nn.Conv2d(self.channel_size, self.channel_size, (3, 1), stride=1)
-        self.pooling = nn.MaxPool2d(kernel_size=(3, 1), stride=2)
-        self.padding_conv = nn.ZeroPad2d((0, 0, 1, 1))
-        self.padding_pool = nn.ZeroPad2d((0, 0, 0, 1))
-        self.act_fun = nn.ReLU()
-        self.linear_out = nn.Linear(2*self.channel_size, 2)
+        self.bn1 = nn.BatchNorm1d(ch_size)
+        self.relu = nn.ReLU()
+        self.conv1 = nn.Conv1d(ch_size, ch_size, 3, padding=1)
+        self.bn2 = nn.BatchNorm1d(ch_size)
+        self.conv2 = nn.Conv1d(ch_size, ch_size, 3, padding=1)
 
     def forward(self, x):
-        batch = x.shape[0]
+        if self.downsample is not None:
+            x = self.downsample(x)
+        residual = x
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.conv1(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        return x + residual
+
+
+class DPCNN(nn.Module):
+    def __init__(self, ch_size, embed_dim, vocab_size, max_len):
+        super(DPCNN, self).__init__()
+        self.embed = nn.Embedding(vocab_size, embed_dim)
+        self.region_embed = nn.Sequential(nn.Conv1d(embed_dim, ch_size, 3, padding=1),
+                                          nn.Dropout(0.2))
+
+        x_len = max_len
+        blocks = []
+        blocks.append(Block(ch_size))
+        downsample = nn.Sequential(nn.ConstantPad1d(padding=(0, 1), value=0),
+                                   nn.MaxPool1d(3, stride=2))
+        while x_len > 1:
+            blocks.append(Block(ch_size, downsample))
+            x_len //= 2
+
+        self.blocks = nn.Sequential(*blocks)
+
+        self.linear = nn.Linear(x_len * ch_size, 2)
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        N = x.shape[0]
 
         # Region embedding
-        x = self.conv_region_embedding(x)        # [batch_size, channel_size, length, 1]
+        x = self.embed(x)
+        x = x.permute(0, 2, 1).contiguous()
+        x = self.region_embed(x)
 
-        x = self.padding_conv(x)                      # pad保证等长卷积，先通过激活函数再卷积
-        x = self.act_fun(x)
-        x = self.conv3(x)
-        x = self.padding_conv(x)
-        x = self.act_fun(x)
-        x = self.conv3(x)
+        x = self.blocks(x)
 
-        while x.size()[-2] > 2:
-            x = self._block(x)
-
-        x = x.view(batch, 2*self.channel_size)
-        x = self.linear_out(x)
+        x = x.view(N, -1)
+        x = self.dropout(x)
+        x = self.linear(x)
 
         return x
-
-    def _block(self, x):
-        # Pooling
-        x = self.padding_pool(x)
-        px = self.pooling(x)
-
-        # Convolution
-        x = self.padding_conv(px)
-        x = F.relu(x)
-        x = self.conv3(x)
-
-        x = self.padding_conv(x)
-        x = F.relu(x)
-        x = self.conv3(x)
-
-        # Short Cut
-        x = x + px
-
-        return x
-
-    def predict(self, x):
-        self.eval()
-        out = self.forward(x)
-        predict_labels = torch.max(out, 1)[1]
-        self.train(mode=True)
-        return predict_labels
