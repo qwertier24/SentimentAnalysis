@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 class Block(nn.Module):
     def __init__(self, ch_size, downsample=None):
@@ -30,7 +31,7 @@ class DPCNN(nn.Module):
     def __init__(self, ch_size, embed_dim, vocab_size, max_len):
         super(DPCNN, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
-        self.region_embed = nn.Sequential(nn.Conv1d(embed_dim, ch_size, 3, padding=1),
+        self.region_embed = nn.Sequential(nn.Conv1d(embed_dim, ch_size, 5, padding=2),
                                           nn.Dropout(0.2))
 
         x_len = max_len
@@ -46,6 +47,10 @@ class DPCNN(nn.Module):
 
         self.linear = nn.Linear(x_len * ch_size, 2)
         self.dropout = nn.Dropout(0.5)
+
+    def init_embeds(self, pretrained_embeds):
+        self.embed.weight.data.copy_(torch.from_numpy(np.array(pretrained_embeds)))
+
 
     def forward(self, x):
         N = x.shape[0]

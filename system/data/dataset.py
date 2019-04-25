@@ -12,6 +12,8 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 word_to_idx = {"": 0}
 max_len = 1024
+dict_size = 0
+embeds = [[0]*300]
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -60,7 +62,7 @@ class TextDataset(torch.utils.data.Dataset):
             for stopword in f:
                 stopwords.add(stopword.replace('\n', ''))
 
-        embeds = {}
+        embeds_dict = {}
         with open(dir_path+"/sgns.weibo.word", "r") as f:
             first = True
             for line in f:
@@ -71,25 +73,23 @@ class TextDataset(torch.utils.data.Dataset):
                 line = line.split(' ')
                 if line[-1] == '':
                     line = line[:-1]
-                embeds[line[0]] = [float(c_x) for c_x in line[1:]]
+                embeds_dict[line[0]] = [float(c_x) for c_x in line[1:]]
 
         cls.regex_change(reviews)
+        global dict_size
         for i in range(len(reviews)):
             reviews[i] = jieba.lcut(reviews[i], cut_all=False)
             reviews[i] = [word for word in reviews[i] if word not in stopwords]
             for j, word in enumerate(reviews[i]):
-                if word not in word_to_idx:
-                    word_to_idx[word] = len(word_to_idx)
-                    # print(word, len(word_to_idx))
-                if word in embeds:
-                    reviews[i][j] = embeds[word]
-                else:
-                    reviews[i][j] = [0.] * 300
-            reviews[i] = torch.Tensor(reviews[i])
-            # print(i, reviews[i])
-            # if reviews[i].shape[0] == 0:
-            #     print(i, reviews[i])
-            # assert reviews[i].shape[0] > 0
+                if word not in embeds_dict:
+                    word_to_idx[word] = 0
+                elif word not in word_to_idx:
+                    dict_size += 1
+                    embeds.append(embeds_dict[word])
+                    word_to_idx[word] = dict_size
+                reviews[i][j] = word_to_idx[word]
+
+            reviews[i] = torch.LongTensor(reviews[i])
 
         return [r for r in reviews if len(r) > 0]
 
@@ -113,9 +113,9 @@ class TextDataset(torch.utils.data.Dataset):
     def __init__(self, data_path):
         def getpad(x):
             if x%2 == 0:
-                return (0, 0, x//2, x//2)
+                return (x//2, x//2)
             else:
-                return (0, 0, x//2+1, x//2)
+                return (x//2+1, x//2)
         self.reviews = []
         posi = self.preprocess(self.get_reviews(os.path.join(data_path, "positive.txt")))
         nega = self.preprocess(self.get_reviews(os.path.join(data_path, "negative.txt")))
@@ -131,12 +131,14 @@ class TextDataset(torch.utils.data.Dataset):
 
 try:
     word_to_idx = pickle.load(open(dir_path+"/word_to_idx.dump", "rb"))
+    embeds = pickle.load(open(dir_path+"/embeds.dump", "rb"))
 except:
     "regenerating word_to_idx ..."
     total_reviews = TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/positive.txt")) \
         + TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/negative.txt")) \
         + TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/test.txt"))
     pickle.dump(word_to_idx, open(dir_path+"/word_to_idx.dump", "wb"))
+    pickle.dump(embeds, open(dir_path+"/embeds.dump", "wb"))
 
 def split_train_val(xml_path, num1, path1, path2):
     reviews = TextDataset.get_reviews(xml_path)
@@ -171,6 +173,7 @@ if __name__ == "__main__":
         cnt += 1
         if cnt < 10:
             print(idx, data)
+    print(len(embeds))
     # total_reviews = TextDataset.preprocess(TextDataset.get_reviews("positive.txt")) \
     #     + TextDataset.preprocess(TextDataset.get_reviews("negative.txt")) \
     #     + TextDataset.preprocess(TextDataset.get_reviews("test.txt"))

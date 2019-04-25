@@ -3,7 +3,7 @@ from torch import nn
 import argparse
 import yaml
 import models
-from data.dataset import TextDataset, word_to_idx, max_len
+from data.dataset import TextDataset, word_to_idx, max_len, embeds
 from torch.utils.data import DataLoader
 from torch import optim
 from tensorboardX import SummaryWriter
@@ -25,7 +25,8 @@ def main ():
         for k, v in config.items():
             setattr(args, k, v)
 
-    model = models.__dict__[args.model](ch_size=args.ch_size, embed_dim=args.embed_dim, vocab_size=len(word_to_idx), max_len=max_len)
+    model = models.__dict__[args.model](ch_size=args.ch_size, embed_dim=args.embed_dim, vocab_size=len(embeds), max_len=max_len)
+    model.init_embeds(embeds)
     if use_gpu:
         model = model.cuda()
         if args.dataparallel:
