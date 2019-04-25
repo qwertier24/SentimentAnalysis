@@ -8,8 +8,8 @@ embed_dim: 300
 batch_size: 128
 num_workers: 4
 print_freq: 10
-epoch: 40
-steps: [10, 20, 30]
+epoch: 100
+steps: [20, 30, 50]
 base_lr: 0.01
 momentum: 0.9
 weight_decay: 0.0001

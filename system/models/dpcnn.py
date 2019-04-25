@@ -29,7 +29,7 @@ class Block(nn.Module):
 class DPCNN(nn.Module):
     def __init__(self, ch_size, embed_dim, vocab_size, max_len):
         super(DPCNN, self).__init__()
-        self.embed = nn.Embedding(vocab_size, embed_dim)
+        self.embed = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
         self.region_embed = nn.Sequential(nn.Conv1d(embed_dim, ch_size, 3, padding=1),
                                           nn.Dropout(0.2))
 
