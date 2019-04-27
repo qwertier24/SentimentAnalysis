@@ -10,9 +10,9 @@ class Block(nn.Module):
 
         self.bn1 = nn.BatchNorm1d(ch_size)
         self.relu = nn.ReLU()
-        self.conv1 = nn.Conv1d(ch_size, ch_size, 3, padding=1)
+        self.conv1 = nn.Conv1d(ch_size, ch_size, 5, padding=2)
         self.bn2 = nn.BatchNorm1d(ch_size)
-        self.conv2 = nn.Conv1d(ch_size, ch_size, 3, padding=1)
+        self.conv2 = nn.Conv1d(ch_size, ch_size, 5, padding=2)
 
     def forward(self, x):
         if self.downsample is not None:

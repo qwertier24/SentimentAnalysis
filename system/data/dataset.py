@@ -154,6 +154,17 @@ def split_train_val(xml_path, num1, path1, path2):
             f2.write(r)
             f2.write("\n</review>\n")
 
+id_to_word = {}
+for key, value in word_to_idx.items():
+    if value != 0:
+        id_to_word[value] = key
+def restore_input(review):
+    res = []
+    for i in range(len(review)):
+        if review[i] in id_to_word:
+            res.append(id_to_word[review[i]])
+    return " ".join(res)
+
 if __name__ == "__main__":
     train_data = TextDataset("train")
     train_loader = DataLoader(dataset=train_data,

@@ -3,7 +3,7 @@ from torch import nn
 import argparse
 import yaml
 import models
-from data.dataset import TextDataset, word_to_idx, max_len, embeds
+from data.dataset import TextDataset, word_to_idx, max_len, embeds, restore_input
 from torch.utils.data import DataLoader
 from torch import optim
 from tensorboardX import SummaryWriter
@@ -83,6 +83,8 @@ def validate(model, loader, criterion, writer, epoch):
     model.eval()
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
+    wrong_posi = []
+    wrong_nega = []
     with torch.no_grad():
         for i, (input, label) in enumerate(loader):
 
@@ -102,6 +104,26 @@ def validate(model, loader, criterion, writer, epoch):
     print("Val results [{}]: {:.3f}".format(epoch, acc_meter.avg))
     writer.add_scalar("Val/loss", loss_meter.avg, epoch)
     writer.add_scalar("Val/acc", acc_meter.avg, epoch)
+    if acc_meter.avg > 0.75:
+        with torch.no_grad():
+            for i, (input, label) in enumerate(loader):
+
+                input = input.cuda()
+
+                output = model(input)
+
+                pred = torch.max(output, 1)[1].cpu()
+                v_eq = (pred == label)
+
+                v_eq = v_eq.numpy()
+                input = input.cpu().numpy()
+                for i in range(len(v_eq)):
+                    if v_eq[i] == 0:
+                        print(">>>>>>>>>")
+                        print(restore_input(input[i]), label[i], pred[i])
+                        print("<<<<<<<<<")
+        exit()
+
 
 if __name__ == "__main__":
     main ()
