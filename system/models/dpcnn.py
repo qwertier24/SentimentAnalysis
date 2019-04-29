@@ -28,10 +28,13 @@ class Block(nn.Module):
 
 
 class DPCNN(nn.Module):
-    def __init__(self, ch_size, embed_dim, vocab_size, max_len):
+    def __init__(self, ch_size, embed_dim, vocab_size, max_len, mark_size):
         super(DPCNN, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
-        self.region_embed = nn.Sequential(nn.Conv1d(embed_dim, ch_size, 5, padding=2),
+        self.embed2 = nn.Embedding(mark_size, embed_dim, padding_idx=0)
+        self.mark_size = mark_size
+
+        self.region_embed = nn.Sequential(nn.Conv1d(embed_dim*2, ch_size, 5, padding=2),
                                           nn.Dropout(0.2))
 
         x_len = max_len
@@ -50,14 +53,22 @@ class DPCNN(nn.Module):
 
     def init_embeds(self, pretrained_embeds):
         self.embed.weight.data.copy_(torch.from_numpy(np.array(pretrained_embeds)))
+        embed2_weight = torch.zeros(self.embed2.num_embeddings, self.embed2.embedding_dim)
+        for i in range(1, self.mark_size):
+            embed2_weight[i,i] = 1
+        self.embed2.weight.data.copy_(embed2_weight)
+        self.embed.requires_grad = True
+        self.embed2.requires_grad = True
 
 
     def forward(self, x):
         N = x.shape[0]
 
         # Region embedding
-        x = self.embed(x)
-        x = x.permute(0, 2, 1).contiguous()
+        x0 = self.embed(x[:,0,:].squeeze(1))
+        x1 = self.embed(x[:,1,:].squeeze(1))
+        x = torch.cat((x0, x1), 2).permute(0, 2, 1).contiguous()
+
         x = self.region_embed(x)
 
         x = self.blocks(x)

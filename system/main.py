@@ -3,7 +3,7 @@ from torch import nn
 import argparse
 import yaml
 import models
-from data.dataset import TextDataset, word_to_idx, max_len, embeds, restore_input
+from data.dataset import TextDataset, word_to_idx, max_len, embeds, restore_input, mark_size
 from torch.utils.data import DataLoader
 from torch import optim
 from tensorboardX import SummaryWriter
@@ -25,7 +25,7 @@ def main ():
         for k, v in config.items():
             setattr(args, k, v)
 
-    model = models.__dict__[args.model](ch_size=args.ch_size, embed_dim=args.embed_dim, vocab_size=len(embeds), max_len=max_len)
+    model = models.__dict__[args.model](ch_size=args.ch_size, embed_dim=args.embed_dim, vocab_size=len(embeds), max_len=max_len, mark_size=100)
     model.init_embeds(embeds)
     if use_gpu:
         model = model.cuda()
@@ -104,7 +104,7 @@ def validate(model, loader, criterion, writer, epoch):
     print("Val results [{}]: {:.3f}".format(epoch, acc_meter.avg))
     writer.add_scalar("Val/loss", loss_meter.avg, epoch)
     writer.add_scalar("Val/acc", acc_meter.avg, epoch)
-    if acc_meter.avg > 0.75:
+    if acc_meter.avg > 0.8:
         with torch.no_grad():
             for i, (input, label) in enumerate(loader):
 

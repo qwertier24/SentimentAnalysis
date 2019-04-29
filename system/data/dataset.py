@@ -6,13 +6,16 @@ import os
 import pickle
 import torch
 import torch.nn.functional as F
+import jieba.posseg as pseg
 import random
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 word_to_idx = {"": 0}
+mark_to_idx = {"": 0}
 max_len = 1024
 dict_size = 0
+mark_size = 0
 embeds = [[0]*300]
 
 
@@ -44,7 +47,7 @@ class TextDataset(torch.utils.data.Dataset):
             """, re.VERBOSE),
 
             # 数字
-            re.compile(r"[^a-zA-Z]\d+"),
+            re.compile(r"\d+"),
 
             # 空格
             re.compile(r"\s+")
@@ -76,20 +79,29 @@ class TextDataset(torch.utils.data.Dataset):
                 embeds_dict[line[0]] = [float(c_x) for c_x in line[1:]]
 
         cls.regex_change(reviews)
-        global dict_size
+        global dict_size, mark_size
         for i in range(len(reviews)):
-            reviews[i] = jieba.lcut(reviews[i], cut_all=False)
-            reviews[i] = [word for word in reviews[i] if word not in stopwords]
-            for j, word in enumerate(reviews[i]):
+            reviews[i] = list(pseg.cut(reviews[i]))
+            reviews[i] = [(word, mark) for word,mark in reviews[i] if word not in stopwords]
+            for j, (word, mark) in enumerate(reviews[i]):
                 if word not in embeds_dict:
                     word_to_idx[word] = 0
                 elif word not in word_to_idx:
                     dict_size += 1
                     embeds.append(embeds_dict[word])
                     word_to_idx[word] = dict_size
-                reviews[i][j] = word_to_idx[word]
 
-            reviews[i] = torch.LongTensor(reviews[i])
+                if mark not in mark_to_idx:
+                    mark_size += 1
+                    mark_to_idx[mark] = mark_size
+                    print(mark, mark_to_idx[mark])
+
+                reviews[i][j] = torch.LongTensor([word_to_idx[word], mark_to_idx[mark]])
+
+            if len(reviews[i]) > 0:
+                reviews[i] = torch.stack(reviews[i])
+            else:
+                reviews[i] = []
 
         return [r for r in reviews if len(r) > 0]
 
@@ -113,9 +125,9 @@ class TextDataset(torch.utils.data.Dataset):
     def __init__(self, data_path):
         def getpad(x):
             if x%2 == 0:
-                return (x//2, x//2)
+                return (0, 0, x//2, x//2)
             else:
-                return (x//2+1, x//2)
+                return (0, 0, x//2+1, x//2)
         self.reviews = []
         posi = self.preprocess(self.get_reviews(os.path.join(data_path, "positive.txt")))
         nega = self.preprocess(self.get_reviews(os.path.join(data_path, "negative.txt")))
@@ -123,7 +135,7 @@ class TextDataset(torch.utils.data.Dataset):
             + [(F.pad(r, getpad(max_len-r.shape[0]), "constant", 0), 1) for r in nega]
 
     def __getitem__(self, idx):
-        return self.reviews[idx]
+        return (self.reviews[idx][0].permute(1, 0), self.reviews[idx][1])
 
     def __len__(self):
         return len(self.reviews)
@@ -132,13 +144,15 @@ class TextDataset(torch.utils.data.Dataset):
 try:
     word_to_idx = pickle.load(open(dir_path+"/word_to_idx.dump", "rb"))
     embeds = pickle.load(open(dir_path+"/embeds.dump", "rb"))
+    mark_to_idx = pickle.load(open(dir_path+"/mark_to_idx.dump", "rb"))
 except:
-    "regenerating word_to_idx ..."
+    print("regenerating word_to_idx ...")
     total_reviews = TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/positive.txt")) \
         + TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/negative.txt")) \
         + TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/test.txt"))
     pickle.dump(word_to_idx, open(dir_path+"/word_to_idx.dump", "wb"))
     pickle.dump(embeds, open(dir_path+"/embeds.dump", "wb"))
+    pickle.dump(mark_to_idx, open(dir_path+"/mark_to_idx.dump", "wb"))
 
 def split_train_val(xml_path, num1, path1, path2):
     reviews = TextDataset.get_reviews(xml_path)
