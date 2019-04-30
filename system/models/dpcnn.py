@@ -51,14 +51,14 @@ class DPCNN(nn.Module):
         self.linear = nn.Linear(x_len * ch_size, 2)
         self.dropout = nn.Dropout(0.5)
 
-    def init_embeds(self, pretrained_embeds):
+    def init_embeds(self, pretrained_embeds, train_embed, train_embed2):
         self.embed.weight.data.copy_(torch.from_numpy(np.array(pretrained_embeds)))
-        embed2_weight = torch.zeros(self.embed2.num_embeddings, self.embed2.embedding_dim)
-        for i in range(1, self.mark_size):
-            embed2_weight[i,i] = 1
-        self.embed2.weight.data.copy_(embed2_weight)
-        self.embed.requires_grad = True
-        self.embed2.requires_grad = True
+        # embed2_weight = torch.zeros(self.embed2.num_embeddings, self.embed2.embedding_dim)
+        # for i in range(1, self.mark_size):
+        #     embed2_weight[i,i] = 1
+        # self.embed2.weight.data.copy_(embed2_weight)
+        self.embed.requires_grad = train_embed
+        self.embed2.requires_grad = train_embed2
 
 
     def forward(self, x):

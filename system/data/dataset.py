@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 import jieba.posseg as pseg
 import random
+from tqdm import tqdm
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -17,6 +18,7 @@ max_len = 1024
 dict_size = 0
 mark_size = 0
 embeds = [[0]*300]
+embeds_dict = None
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -59,28 +61,31 @@ class TextDataset(torch.utils.data.Dataset):
             assert len(reviews[i]) > 0
 
     @classmethod
-    def preprocess(cls, reviews):
+    def preprocess(cls, reviews, evl=False):
         stopwords = set()
         with open(dir_path+"/stopwords_hit.txt") as f:
             for stopword in f:
                 stopwords.add(stopword.replace('\n', ''))
 
-        embeds_dict = {}
-        with open(dir_path+"/sgns.weibo.word", "r") as f:
-            first = True
-            for line in f:
-                if first:
-                    first = False
-                    continue
-                line = line.replace('\n', '')
-                line = line.split(' ')
-                if line[-1] == '':
-                    line = line[:-1]
-                embeds_dict[line[0]] = [float(c_x) for c_x in line[1:]]
+        global embeds_dict
+        if embeds_dict is None:
+            embeds_dict = {}
+            # with open(dir_path+"/sgns.weibo.word", "r") as f:
+            with open(dir_path+"/merge_sgns_bigram_char300.txt", "r") as f:
+                first = True
+                for line in tqdm(f, "embeds_dict"):
+                    if first:
+                        first = False
+                        continue
+                    line = line.replace('\n', '')
+                    line = line.split(' ')
+                    if line[-1] == '':
+                        line = line[:-1]
+                    embeds_dict[line[0]] = [float(c_x) for c_x in line[1:]]
 
         cls.regex_change(reviews)
         global dict_size, mark_size
-        for i in range(len(reviews)):
+        for i in tqdm(range(len(reviews)), "reviews"):
             reviews[i] = list(pseg.cut(reviews[i]))
             reviews[i] = [(word, mark) for word,mark in reviews[i] if word not in stopwords]
             for j, (word, mark) in enumerate(reviews[i]):
@@ -103,7 +108,10 @@ class TextDataset(torch.utils.data.Dataset):
             else:
                 reviews[i] = []
 
-        return [r for r in reviews if len(r) > 0]
+        if evl:
+            return [(r,i) for i,r in enumerate(reviews) if len(r) > 0]
+        else:
+            return [r for r in reviews if len(r) > 0]
 
     @classmethod
     def get_reviews(cls, xml_path):
@@ -122,20 +130,28 @@ class TextDataset(torch.utils.data.Dataset):
                     cur_review += line
         return reviews
 
-    def __init__(self, data_path):
+    def __init__(self, data_path, evl=False):
         def getpad(x):
             if x%2 == 0:
                 return (0, 0, x//2, x//2)
             else:
                 return (0, 0, x//2+1, x//2)
         self.reviews = []
-        posi = self.preprocess(self.get_reviews(os.path.join(data_path, "positive.txt")))
-        nega = self.preprocess(self.get_reviews(os.path.join(data_path, "negative.txt")))
-        self.reviews = [(F.pad(r, getpad(max_len-r.shape[0]), "constant", 0), 0) for r in posi] \
-            + [(F.pad(r, getpad(max_len-r.shape[0]), "constant", 0), 1) for r in nega]
+        self.evl = evl
+        if evl:
+            rev = self.preprocess(self.get_reviews(os.path.join(data_path, "test.txt")), True)
+            self.reviews = [(F.pad(r[0], getpad(max_len-r[0].shape[0]), "constant", 0),r[1]) for r in rev]
+        else:
+            posi = self.preprocess(self.get_reviews(os.path.join(data_path, "positive.txt")))
+            nega = self.preprocess(self.get_reviews(os.path.join(data_path, "negative.txt")))
+            self.reviews = [(F.pad(r, getpad(max_len-r.shape[0]), "constant", 0), 1) for r in posi] \
+                + [(F.pad(r, getpad(max_len-r.shape[0]), "constant", 0), 0) for r in nega]
 
     def __getitem__(self, idx):
-        return (self.reviews[idx][0].permute(1, 0), self.reviews[idx][1])
+        if self.evl:
+            return (self.reviews[idx][0].permute(1, 0), self.reviews[idx][1])
+        else:
+            return (self.reviews[idx][0].permute(1, 0), self.reviews[idx][1])
 
     def __len__(self):
         return len(self.reviews)
@@ -145,6 +161,7 @@ try:
     word_to_idx = pickle.load(open(dir_path+"/word_to_idx.dump", "rb"))
     embeds = pickle.load(open(dir_path+"/embeds.dump", "rb"))
     mark_to_idx = pickle.load(open(dir_path+"/mark_to_idx.dump", "rb"))
+    embeds_dict = pickle.load(open(dir_path+"/embeds_dict.dump", "rb"))
 except:
     print("regenerating word_to_idx ...")
     total_reviews = TextDataset.preprocess(TextDataset.get_reviews(dir_path+"/positive.txt")) \
@@ -153,6 +170,7 @@ except:
     pickle.dump(word_to_idx, open(dir_path+"/word_to_idx.dump", "wb"))
     pickle.dump(embeds, open(dir_path+"/embeds.dump", "wb"))
     pickle.dump(mark_to_idx, open(dir_path+"/mark_to_idx.dump", "wb"))
+    pickle.dump(embeds_dict, open(dir_path+"/embeds_dict.dump", "wb"))
 
 def split_train_val(xml_path, num1, path1, path2):
     reviews = TextDataset.get_reviews(xml_path)
@@ -172,8 +190,10 @@ id_to_word = {}
 for key, value in word_to_idx.items():
     if value != 0:
         id_to_word[value] = key
+
 def restore_input(review):
     res = []
+    print("shape", review.shape)
     for i in range(len(review)):
         if review[i] in id_to_word:
             res.append(id_to_word[review[i]])

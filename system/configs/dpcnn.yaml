@@ -1,15 +1,17 @@
 cuda: True
-dataparallel: False
+dataparallel: True
 
 model: DPCNN
-ch_size: 300
+ch_size: 250
 embed_dim: 300
+train_embed: False
+train_embed2: True
 
 batch_size: 128
 num_workers: 4
 print_freq: 10
-epoch: 100
-steps: [20, 30, 50]
+epoch: 50
+steps: [20, 30, 40]
 base_lr: 0.01
 momentum: 0.9
 weight_decay: 0.0001
